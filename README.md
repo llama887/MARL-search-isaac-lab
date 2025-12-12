@@ -33,7 +33,7 @@ git clone git@github.com:leggedrobotics/marladona-isaac-lab.git
 
 ```bash
 # Enter the repository
-cd marladona-isaac-lab
+cd marladona-isaac-lab 
 ```
 
 - Using a python interpreter that has Isaac Lab installed, install the library

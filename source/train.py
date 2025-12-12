@@ -70,28 +70,7 @@ from isaaclab.envs import (
     multi_agent_to_single_agent,
 )
 from isaaclab.utils.dict import print_dict
-
-try:
-    from isaaclab.utils.io import dump_pickle, dump_yaml
-except ImportError:
-    # Some IsaacLab builds omit io/pkl.py (see GH-4030/3765), so fall back on stdlib helpers.
-    import pickle
-    import yaml
-
-    def _ensure_parent_dir(filepath: str) -> None:
-        directory = os.path.dirname(filepath)
-        if directory:
-            os.makedirs(directory, exist_ok=True)
-
-    def dump_pickle(filename: str, data) -> None:
-        _ensure_parent_dir(filename)
-        with open(filename, "wb") as file:
-            pickle.dump(data, file)
-
-    def dump_yaml(filename: str, data, sort_keys: bool = False) -> None:
-        _ensure_parent_dir(filename)
-        with open(filename, "w", encoding="utf-8") as file:
-            yaml.dump(data, file, sort_keys=sort_keys)
+from isaaclab.utils.io import dump_pickle, dump_yaml
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg
 from isaaclab_tasks.utils import get_checkpoint_path
 from isaaclab_tasks.utils.hydra import hydra_task_config
