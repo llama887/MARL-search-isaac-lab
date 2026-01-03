@@ -1,0 +1,55 @@
+seed: 42
+device: cuda:0
+num_steps_per_env: 48
+max_iterations: 10000
+empirical_normalization: false
+policy:
+  class_name: ActorCriticBeta
+  init_noise_std: 1.0
+  actor_hidden_dims:
+  - 128
+  - 128
+  - 128
+  critic_hidden_dims:
+  - 128
+  - 128
+  - 128
+  activation: elu
+algorithm:
+  class_name: PPO
+  value_loss_coef: 1.0
+  use_clipped_value_loss: true
+  clip_param: 0.2
+  entropy_coef: 0.003
+  num_learning_epochs: 5
+  num_mini_batches: 4
+  learning_rate: 0.001
+  schedule: adaptive
+  gamma: 0.99
+  lam: 0.95
+  desired_kl: 0.01
+  max_grad_norm: 1.0
+  symmetry_cfg:
+    use_augmentation: true
+    use_loss: false
+    use_symmetry: true
+    symmetry_coeff: 0.0
+save_interval:
+  '0': 20
+  '200': 50
+  '500': 100
+  '2000': 500
+experiment_name: marl_soccer
+run_name: ''
+logger: tensorboard
+neptune_project: isaaclab
+wandb_project: isaaclab
+resume: false
+load_run: .*
+load_checkpoint: model_.*.pt
+policy_replay:
+  load_path: ''
+  dynamic_generate_replay_level: true
+  shuffle: false
+  score_difference: 0.75
+  max_num_policy_replay_level: 2

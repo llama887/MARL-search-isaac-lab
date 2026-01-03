@@ -87,7 +87,7 @@ class InitPosManager:
 
     def re_sample_init_pos(self, env_ids=None):
         if env_ids is None:
-            env_ids = ...
+            env_ids = slice(None)
         if self.random_sampling:
             self.blue_default_pos[env_ids, ...] = self.uniform_sample(
                 self.blue_default_pos[env_ids, ...],
