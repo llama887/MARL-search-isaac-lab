@@ -104,6 +104,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # sets the method to self-play when not in league mode
     if not args_cli.league:
         env_cfg.soccer_game.default_control = [1, 1]
+        env_cfg.soccer_game.agent_id_control = [
+            [1 for _ in range(env_cfg.soccer_game.num_agents_per_team)],
+            [1 for _ in range(env_cfg.soccer_game.num_agents_per_team)],
+        ]
 
     # specify directory for logging experiments
     log_root_path = os.path.join(WKS_LOGS_DIR, agent_cfg.experiment_name)
