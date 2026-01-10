@@ -34,6 +34,12 @@ parser.add_argument("--num_envs", type=int, default=None, help="Number of enviro
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
+parser.add_argument(
+    "--league",
+    action="store_true",
+    default=False,
+    help="sets MARL training method to league; uses self-play if not set",
+)
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
@@ -120,6 +126,14 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # note: certain randomizations occur in the environment initialization so we set the seed here
     env_cfg.seed = agent_cfg.seed
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
+
+    # sets the method to self-play when not in league mode
+    if not args_cli.league:
+        env_cfg.soccer_game.default_control = [1, 1]
+        env_cfg.soccer_game.agent_id_control = [
+            [1 for _ in range(env_cfg.soccer_game.num_agents_per_team)],
+            [1 for _ in range(env_cfg.soccer_game.num_agents_per_team)],
+        ]
 
     # specify directory for logging experiments
     log_root_path = os.path.join(WKS_LOGS_DIR, agent_cfg.experiment_name)

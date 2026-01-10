@@ -50,6 +50,8 @@ python -m pip install -e source/rsl_marl
 
 ```bash
 python scripts/rsl_rl/train.py --task=Isaac-Soccer-v0 
+# for headless environments
+python scripts/rsl_rl/train.py --task=Isaac-Soccer-v0 --headless --kit_args='--/app/extensions/excluded=["omni.physx.ui"]'
 ```
 
 We assumed `wks_logs` to be our default root log folder for all our scripts. An example policy is already provided there. You can test its performance by running the following command:

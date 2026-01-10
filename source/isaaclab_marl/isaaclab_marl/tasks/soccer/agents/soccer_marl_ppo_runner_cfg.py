@@ -48,6 +48,8 @@ class SoccerMARLPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     max_iterations = 10000
     save_interval = {"0": 20, "200": 50, "500": 100, "2000": 500}
     experiment_name = "marl_soccer"
+    logger = "wandb"
+    wandb_project = "MARL-Soccer"
     empirical_normalization = False
     policy = RslRlPpoActorCriticCfg(
         class_name="ActorCriticBeta",
