@@ -28,6 +28,7 @@
 **/.neptune/*
 docker/artifacts/
 *.tmp
+wks_logs/marl_soccer
 
 # Isaac-Sim packman
 _isaac_sim*
