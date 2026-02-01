@@ -13,7 +13,18 @@
 # limitations under the License.
 
 from isaaclab.utils import configclass
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg
+from isaaclab_rl.rsl_rl import (
+    RslRlOnPolicyRunnerCfg,
+    RslRlPpoActorCriticCfg,
+    RslRlPpoAlgorithmCfg,
+)
+
+
+@configclass
+class BotEvalCfg:
+    enabled = True
+    interval = 1000
+    num_episodes = 20
 
 
 @configclass
@@ -73,3 +84,4 @@ class SoccerMARLPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         max_grad_norm=1.0,
     )
     policy_replay: PolicyReplayCfg = PolicyReplayCfg()
+    bot_eval: BotEvalCfg = BotEvalCfg()
