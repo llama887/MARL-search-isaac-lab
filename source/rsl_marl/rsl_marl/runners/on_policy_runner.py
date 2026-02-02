@@ -430,16 +430,6 @@ class OnPolicyRunner:
 
                 if hasattr(self.logger, "writer") and self.logger.writer is not None:
                     self.logger.writer.add_scalar(
-                        "BotEval/mean_blue_score_vs_bots",
-                        bot_eval_stats["mean_blue_score_vs_bots"],
-                        it,
-                    )
-                    self.logger.writer.add_scalar(
-                        "BotEval/mean_red_score_vs_bots",
-                        bot_eval_stats["mean_red_score_vs_bots"],
-                        it,
-                    )
-                    self.logger.writer.add_scalar(
                         "BotEval/win_rate_vs_bots",
                         bot_eval_stats["win_rate_vs_bots"],
                         it,
