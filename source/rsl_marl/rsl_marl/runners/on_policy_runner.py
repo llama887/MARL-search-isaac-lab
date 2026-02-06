@@ -8,6 +8,9 @@
 import atexit
 import numpy as np
 import statistics
+import os
+from copy import deepcopy
+from isaaclab_marl.config import WKS_LOGS_DIR
 
 # python
 import time
@@ -15,7 +18,6 @@ import time
 # torch
 import torch
 from collections import deque
-from copy import deepcopy
 from typing import TYPE_CHECKING
 
 from rsl_marl.algorithms import PPO
@@ -130,6 +132,34 @@ class OnPolicyRunner:
         self.current_learning_iteration = 0
 
         self.epoch_counter = 0
+
+        # Load previous best policy
+        self.best_previous_policy_path = getattr(
+            command_args, "best_previous_policy", None
+        )
+        self.best_previous_policy = None
+
+        if self.best_previous_policy_path:
+            if not os.path.isabs(self.best_previous_policy_path):
+                candidate = os.path.abspath(self.best_previous_policy_path)
+                if os.path.exists(candidate):
+                    self.best_previous_policy_path = candidate
+                else:
+                    # Fallback to WKS_LOGS_DIR
+                    candidate = os.path.join(
+                        WKS_LOGS_DIR, self.best_previous_policy_path
+                    )
+                    self.best_previous_policy_path = candidate
+            if not os.path.exists(self.best_previous_policy_path):
+                raise FileNotFoundError(
+                    f"Could not find {self.best_previous_policy_path}"
+                )
+
+            # clone the current architecture and load weights
+            self.best_previous_policy = deepcopy(self.alg.actor_critic).to(self.device)
+            loaded_dict = torch.load(self.best_previous_policy_path, weights_only=True)
+            self.best_previous_policy.load_state_dict(loaded_dict["model_state_dict"])
+            self.best_previous_policy.eval()
 
     def reset_buffers(self):
         if self.env_data.num_policy_replay_agents_per_env > 0:
@@ -440,6 +470,37 @@ class OnPolicyRunner:
                         it,
                     )
 
+            if (
+                self.best_previous_policy_path
+                and it % self.bot_eval_interval == 0
+                and it > 0
+            ):
+                print(
+                    f"[INFO] Running bot evaluation against previous policy at iteration {it}..."
+                )
+                with torch.inference_mode():
+                    previous_policy_eval_stats = (
+                        self._eval_against_best_previous_policy(it)
+                    )
+
+                if (
+                    previous_policy_eval_stats
+                    and hasattr(self.logger, "writer")
+                    and self.logger.writer is not None
+                ):
+                    self.logger.writer.add_scalar(
+                        "PreviousPolicyEval/win_rate_vs_best_previous_policy",
+                        previous_policy_eval_stats["win_rate_vs_best_previous_policy"],
+                        it,
+                    )
+                    self.logger.writer.add_scalar(
+                        "PreviousPolicyEval/score_diff_vs_best_previous_policy",
+                        previous_policy_eval_stats[
+                            "score_diff_vs_best_previous_policy"
+                        ],
+                        it,
+                    )
+
             if self.log_dir is not None:
                 terrain_level = self.env_data.field_curriculum_level.cpu().numpy()
                 self.logger.log(locals())
@@ -609,6 +670,103 @@ class OnPolicyRunner:
             "mean_red_score_vs_bots": mean_red_score,
             "win_rate_vs_bots": win_rate,
             "score_diff_vs_bots": score_diff,
+            "num_episodes": self.bot_eval_num_episodes,
+        }
+
+    def _eval_against_best_previous_policy(self, iteration):
+        """
+        Evaluate current polic against a previous checkpoint policy.
+        Returns wine-rate and score-diff stats.
+        """
+
+        if self.best_previous_policy is None:
+            print("[WARNING] No previous policy to evaluate against.")
+            return None
+
+        original_control = self.env_data.agent_control_type.clone()
+
+        # Configure for policy vs policy evaluation
+        self.env_data.agent_control_type[:, 0, :] = 1
+        self.env_data.agent_control_type[:, 1, :] = 1
+        self.env_data.regenerate_mask_index()
+
+        scores_blue = []  # Track blue team scores across episodes
+        scores_red = []  # Track red team scores across episodes
+        num_envs = self.env.num_envs
+
+        # Masks for active blue/red agents in flattened order
+        # Build masks that match the flattened (env, team, agent) layout
+        blue_mask = self.env_data.active.new_zeros(
+            self.env_data.team_flatten_base_shape
+        )
+        red_mask = self.env_data.active.new_zeros(self.env_data.team_flatten_base_shape)
+        blue_mask[:, : self.env_data.num_agents_per_team] = self.env_data.active[
+            :, 0, :
+        ]
+        red_mask[:, self.env_data.num_agents_per_team :] = self.env_data.active[:, 1, :]
+        blue_mask = blue_mask.reshape(-1)
+        red_mask = red_mask.reshape(-1)
+
+        for _ in range(self.bot_eval_num_episodes):
+            # Reset all environments to start fresh episode
+            obs_dict = self.env.get_observations()
+            episode_done = torch.zeros(num_envs, dtype=bool, device=self.device)
+            infos = None
+
+            # Episode loop - runs until all environments finish
+            max_steps = self.env.max_episode_length
+            for step in range(max_steps):
+                if episode_done.all():
+                    break  # All episodes finished
+
+                # Build observations for policy by concatenating policy and neighbor observations
+                obs = torch.cat([obs_dict["policy"], obs_dict["neighbor"]], dim=1)
+                # Initialize actions tensor for all agents in all environments
+                actions = torch.zeros(
+                    num_envs * self.env_data.num_agents_per_team * 2,
+                    self.env.num_actions,
+                    device=self.device,
+                )
+
+                # Policy actions for blue team (training_actor_index now points to blue team agents)
+                actions[blue_mask] = self.alg.actor_critic.act_inference(obs[blue_mask])
+                actions[red_mask] = self.best_previous_policy.act_inference(
+                    obs[red_mask]
+                )
+
+                # Step environment forward with the computed actions
+                obs_dict, rewards, actor_dones, infos = self.env.step(actions)
+                env_dones = actor_dones.reshape(self.env_data.team_flatten_base_shape)[
+                    :, 0
+                ]
+
+                # Track episode completion - mark environments as done when they finish
+                episode_done = torch.logical_or(episode_done, env_dones)
+
+            if infos is None:
+                continue
+            final_scores = infos["score"]
+            scores_blue.extend(final_scores[:, 0].cpu().numpy())
+            scores_red.extend(final_scores[:, 1].cpu().numpy())
+
+        # Restore original training configuration
+        self.env_data.agent_control_type = original_control
+        self.env_data.regenerate_mask_index()
+
+        # Reset all environments to clean state after evaluation
+        self.env.reset()
+
+        # Compute statistics from collected scores
+        mean_blue_score = np.mean(scores_blue)
+        mean_red_score = np.mean(scores_red)
+        win_rate = np.mean(np.array(scores_blue) > np.array(scores_red))
+        score_diff = mean_blue_score - mean_red_score
+
+        return {
+            "mean_blue_score_vs_best_previous_policy": mean_blue_score,
+            "mean_red_score_vs_best_previous_policy": mean_red_score,
+            "win_rate_vs_best_previous_policy": win_rate,
+            "score_diff_vs_best_previous_policy": score_diff,
             "num_episodes": self.bot_eval_num_episodes,
         }
 
